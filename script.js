@@ -29,7 +29,7 @@ if (typeof firebase !== 'undefined') {
         firebase.initializeApp(firebaseConfig);
         db = firebase.firestore();
         auth = firebase.auth();
-        
+
         // Autentykacja anonimowa
         auth.signInAnonymously().then(() => {
             firebaseReady = true;
@@ -54,7 +54,7 @@ const GAME_WIDTH = 1000;
 const GAME_HEIGHT = 500;
 
 const BG_WIDTH = 1900;
-const BG_HEIGHT = 3450;
+const BG_HEIGHT = 2500;
 const WORLD_HEIGHT = BG_HEIGHT; // Świat ma wysokość obrazka (3450px)
 
 // --- KONFIGURACJA WARSTW (Nowość!) ---
@@ -82,6 +82,14 @@ const planeImg = new Image();
 planeImg.src = 'plane2d.png';
 planeImg.onload = () => { console.log('Plane sprite loaded'); };
 planeImg.onerror = () => { console.warn('Błąd ładowania pliku: plane2d.png'); };
+
+// Obstacle sprite
+const obstacleImg = new Image();
+obstacleImg.src = 'trash.png';
+
+// Fuel sprite
+const fuelImg = new Image();
+fuelImg.src = 'fuel_tank.png';
 // Stan
 let gameRunning = false;
 let gameMode = 'LOADING';
@@ -96,12 +104,13 @@ let assetsReady = false;
 // Fizyka
 let frames = 0;
 let score = 0;
-let globalSpeed = 8;
+let globalSpeed = 4;
+let nextSpeedIncrease = 300;
 let cameraY = 0;
 
-let GRAVITY = 0.25;
-let LIFT_FORCE = 0.6;
-let DIVE_FORCE = 0.4;
+let GRAVITY = 0.15;
+let LIFT_FORCE = 0.4;
+let DIVE_FORCE = 0.3;
 const MAX_VELOCITY = 12;
 let MAX_FUEL = 100;
 let FUEL_CONSUMPTION = 0.20;
@@ -117,10 +126,10 @@ let playerUpgrades = {
 
 // Gracz
 const plane = {
-    x: 150,
+    x: 50,
     y: WORLD_HEIGHT / 2,
-    width: 60,
-    height: 35,
+    width: 130,
+    height: 45,
     velocity: 0,
     fuel: MAX_FUEL,
     isCrashed: false,
@@ -229,12 +238,12 @@ window.addEventListener('resize', () => {
 
 function showScreen(screenName) {
     // Ukryj wszystkie screeny
-    const screens = ['loading-screen','login-screen','menu-screen','upgrades-screen','gameover-screen','leaderboard-screen'];
+    const screens = ['loading-screen', 'login-screen', 'menu-screen', 'upgrades-screen', 'gameover-screen', 'leaderboard-screen'];
     screens.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.add('hidden');
     });
-    
+
     // Pokaż wybrany screen
     const screenEl = document.getElementById(screenName);
     if (screenEl) {
@@ -329,9 +338,10 @@ function resetGameLogic() {
     score = 0;
     frames = 0;
     cameraY = (WORLD_HEIGHT - GAME_HEIGHT) / 2;
+    globalSpeed = 4;
+    nextSpeedIncrease = 300;
 }
 
-// --- INPUT ---
 
 function handleStart(e) {
     if (gameMode !== 'GAME') return;
@@ -353,8 +363,8 @@ window.addEventListener('mousedown', (e) => {
     if (e.clientX < window.innerWidth / 2) input.leftHeld = true; else input.rightHeld = true;
 });
 window.addEventListener('mouseup', () => { input.leftHeld = false; input.rightHeld = false; });
-window.addEventListener('touchstart', (e) => { e.preventDefault(); handleStart(e); }, {passive: false});
-window.addEventListener('touchend', (e) => { e.preventDefault(); handleEnd(e); }, {passive: false});
+window.addEventListener('touchstart', (e) => { e.preventDefault(); handleStart(e); }, { passive: false });
+window.addEventListener('touchend', (e) => { e.preventDefault(); handleEnd(e); }, { passive: false });
 
 window.addEventListener('deviceorientation', (event) => {
     if (controlType !== 'gyro') return;
@@ -369,6 +379,13 @@ function update() {
 
     frames++;
     score += globalSpeed / 10;
+
+    // Speed increase every 300m
+    if (score >= nextSpeedIncrease) {
+        globalSpeed += 0.5;
+        nextSpeedIncrease += 300;
+        // Optional: Notify user or show speed up effect
+    }
 
     if (plane.fuel <= 0) { plane.isOutOfFuel = true; plane.fuel = 0; }
 
@@ -390,7 +407,7 @@ function update() {
     plane.y += plane.velocity;
 
     // Kolizje Świat
-    if (plane.y < 0) gameOver("Wleciałeś w kosmos!");
+    if (plane.y < 0) gameOver("Za wysoko!");
     if (plane.y + plane.height > WORLD_HEIGHT) gameOver("Rozbicie o ziemię!");
 
     // Kamera
@@ -400,7 +417,7 @@ function update() {
     cameraY = targetCameraY;
 
     // Spawning
-    if (frames % 80 === 0) {
+    if (frames % 40 === 0) {
         if (Math.random() < 0.35) spawnFuel();
         else spawnObstacle();
     }
@@ -414,15 +431,15 @@ function update() {
 function spawnObstacle() {
     obstacles.push({
         x: GAME_WIDTH + 100,
-        y: 100 + Math.random() * (WORLD_HEIGHT - 300),
-        width: 50, height: 100 + Math.random() * 150, active: true
+        y: 50 + Math.random() * (WORLD_HEIGHT - 100),
+        width: 90, height: 125, active: true
     });
 }
 function spawnFuel() {
     fuels.push({
         x: GAME_WIDTH + 100,
         y: 100 + Math.random() * (WORLD_HEIGHT - 200),
-        width: 40, height: 40, active: true
+        width: 53, height: 53, active: true
     });
 }
 
@@ -433,8 +450,12 @@ function updateEntities(list, type) {
         if (e.active && plane.x < e.x + e.width && plane.x + plane.width > e.x &&
             plane.y < e.y + e.height && plane.y + plane.height > e.y) {
             e.active = false;
-            if (type === 'obstacle') plane.fuel -= OBSTACLE_PENALTY;
-            else if (type === 'fuel') { plane.fuel += FUEL_REFILL; if(plane.fuel > MAX_FUEL) plane.fuel = MAX_FUEL; }
+            if (type === 'obstacle') {
+                plane.fuel -= plane.fuel * 0.33; // Lose 25% of CURRENT fuel
+            } else if (type === 'fuel') {
+                plane.fuel += MAX_FUEL * 0.05; // Add 25% of MAX fuel
+                if (plane.fuel > MAX_FUEL) plane.fuel = MAX_FUEL;
+            }
         }
         if (e.x + e.width < -100) { list.splice(i, 1); i--; }
     }
@@ -446,11 +467,11 @@ function gameOver(reason) {
     document.getElementById('final-reason').innerText = reason;
     const finalScore = Math.floor(score);
     document.getElementById('final-score').innerText = finalScore;
-    
+
     // Dodaj walutę (score * 0.1)
     const earnedCurrency = Math.floor(finalScore * 0.1);
     document.getElementById('earned-currency').innerText = `Zarobiono: $${earnedCurrency}`;
-    
+
     // Zapisz wynik do Firebase
     savePlayerResult(finalScore, earnedCurrency);
 }
@@ -481,15 +502,14 @@ function draw() {
 }
 
 function drawCanvasHUD() {
-    // Use GAME coordinate space
     ctx.save();
 
-    const padding = 14;
-    const boxW = 320;
-    const boxH = 60;
+    const padding = 20;
+    const boxW = 330;
+    const boxH = 70;
 
     // Background panel
-    ctx.globalAlpha = 0.7;
+    ctx.globalAlpha = 0.8;
     ctx.fillStyle = 'black';
     ctx.fillRect(padding - 8, padding - 8, boxW, boxH);
     ctx.globalAlpha = 1;
@@ -536,7 +556,7 @@ function drawBackgroundImages() {
         }
         let drawY = 0 - cameraY;
 
-        for(let t = 0; t < numTiles; t++) {
+        for (let t = 0; t < numTiles; t++) {
             let drawX = (t * BG_WIDTH) - currentScroll;
             // Rysowanie 1:1 bez skalowania
             ctx.drawImage(layer.img, drawX, drawY, BG_WIDTH, BG_HEIGHT);
@@ -551,25 +571,33 @@ function drawFallbackBackground() {
     ctx.fillStyle = 'rgba(0,0,0,0.1)';
     ctx.fillRect(0, drawY, GAME_WIDTH, 50);
     ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-    for(let y = 0; y < WORLD_HEIGHT; y+=500) {
-         ctx.beginPath(); ctx.moveTo(0, y - cameraY); ctx.lineTo(GAME_WIDTH, y - cameraY); ctx.stroke();
+    for (let y = 0; y < WORLD_HEIGHT; y += 500) {
+        ctx.beginPath(); ctx.moveTo(0, y - cameraY); ctx.lineTo(GAME_WIDTH, y - cameraY); ctx.stroke();
     }
 }
 
 function drawEntities() {
     obstacles.forEach(o => {
-        if(o.active) {
-            ctx.fillStyle = '#444';
-            ctx.fillRect(o.x, o.y - cameraY, o.width, o.height);
+        if (o.active) {
+            if (obstacleImg && obstacleImg.complete && obstacleImg.naturalWidth > 0) {
+                ctx.drawImage(obstacleImg, o.x, o.y - cameraY, o.width, o.height);
+            } else {
+                ctx.fillStyle = '#444';
+                ctx.fillRect(o.x, o.y - cameraY, o.width, o.height);
+            }
         }
     });
     fuels.forEach(f => {
-        if(f.active) {
-            ctx.fillStyle = 'gold';
-            ctx.fillRect(f.x, f.y - cameraY, f.width, f.height);
-            ctx.fillStyle = 'black';
-            ctx.font = '20px Arial';
-            ctx.fillText("F", f.x + 10, f.y - cameraY + 25);
+        if (f.active) {
+            if (fuelImg && fuelImg.complete && fuelImg.naturalWidth > 0) {
+                ctx.drawImage(fuelImg, f.x, f.y - cameraY, f.width, f.height);
+            } else {
+                ctx.fillStyle = 'gold';
+                ctx.fillRect(f.x, f.y - cameraY, f.width, f.height);
+                ctx.fillStyle = 'black';
+                ctx.font = '20px Arial';
+                ctx.fillText("F", f.x + 10, f.y - cameraY + 25);
+            }
         }
     });
 }
@@ -577,16 +605,16 @@ function drawEntities() {
 function drawPlane() {
     let screenY = plane.y - cameraY;
     ctx.save();
-    ctx.translate(plane.x + plane.width/2, screenY + plane.height/2);
+    ctx.translate(plane.x + plane.width / 2, screenY + plane.height / 2);
     ctx.rotate((plane.velocity * 2.5) * (Math.PI / 180));
 
     if (planeImg && planeImg.complete && planeImg.naturalWidth > 0) {
-        ctx.drawImage(planeImg, -plane.width/2, -plane.height/2, plane.width, plane.height);
+        ctx.drawImage(planeImg, -plane.width / 2, -plane.height / 2, plane.width, plane.height);
     } else {
         ctx.fillStyle = plane.isOutOfFuel ? '#555' : '#e74c3c';
-        ctx.fillRect(-plane.width/2, -plane.height/2, plane.width, plane.height);
+        ctx.fillRect(-plane.width / 2, -plane.height / 2, plane.width, plane.height);
         ctx.fillStyle = 'white';
-        ctx.fillRect(plane.width/4, -5, 10, 10);
+        ctx.fillRect(plane.width / 4, -5, 10, 10);
     }
 
     ctx.restore();
@@ -606,7 +634,7 @@ function loop() {
 
 function loadPlayerData() {
     if (!nickname || nickname === "Pilot") return;
-    
+
     if (!firebaseReady || !db) {
         alert('Brak połączenia z Firebase. Nie można załadować danych gracza.');
         return;
@@ -650,14 +678,14 @@ function loadPlayerData() {
 
 function savePlayerResult(finalScore, earnedCurrency) {
     if (!nickname || nickname === "Pilot") return;
-    
+
     playerMoney += earnedCurrency;
-    
+
     if (!firebaseReady || !db) {
         alert('Brak połączenia z Firebase. Wynik nie został zapisany.');
         return;
     }
-    
+
     const newMoney = playerMoney;
     const newTotalScore = (playerData?.totalScore || 0) + finalScore;
     const newGamesPlayed = (playerData?.gamesPlayed || 0) + 1;
@@ -672,19 +700,19 @@ function savePlayerResult(finalScore, earnedCurrency) {
         gamesPlayed: newGamesPlayed,
         lastGame: new Date()
     })
-    .then(() => {
-        if (playerData) {
-            playerData.money = newMoney;
-            playerData.totalScore = newTotalScore;
-            playerData.bestRun = newBestRun;
-            playerData.gamesPlayed = newGamesPlayed;
-        }
-        console.log("Wynik zapisany do Firebase");
-    })
-    .catch(error => {
-        console.warn("Błąd zapisu do Firebase:", error);
-    });
-    
+        .then(() => {
+            if (playerData) {
+                playerData.money = newMoney;
+                playerData.totalScore = newTotalScore;
+                playerData.bestRun = newBestRun;
+                playerData.gamesPlayed = newGamesPlayed;
+            }
+            console.log("Wynik zapisany do Firebase");
+        })
+        .catch(error => {
+            console.warn("Błąd zapisu do Firebase:", error);
+        });
+
     document.getElementById('earned-currency').innerText = `Zarobiono: +$${earnedCurrency}`;
     updateCurrencyDisplay();
 }
@@ -692,10 +720,10 @@ function savePlayerResult(finalScore, earnedCurrency) {
 function applyUpgrades() {
     // Zwiększenie paliwa początkowego (każdy poziom = +20 paliwa)
     MAX_FUEL = 100 + (playerUpgrades.maxFuel || 0) * 20;
-    
+
     // Zmniejszenie zużycia paliwa (każdy poziom = -0.05 zużycia, minimum 0.05)
     FUEL_CONSUMPTION = Math.max(0.05, 0.20 - (playerUpgrades.efficiency || 0) * 0.05);
-    
+
     // Resetuj paliwo gracza
     plane.fuel = MAX_FUEL;
 }
@@ -722,7 +750,7 @@ function buyUpgrade(upgradeType) {
     }
     const costMaxFuel = 10;
     const costEfficiency = 15;
-    
+
     if (upgradeType === 'maxFuel') {
         if (playerMoney >= costMaxFuel) {
             playerMoney -= costMaxFuel;
@@ -756,12 +784,12 @@ function saveUpgrades() {
         money: playerMoney,
         upgrades: playerUpgrades
     })
-    .then(() => {
-        applyUpgrades();
-        console.log("Ulepszenia zapisane do Firebase");
-    })
-    .catch(error => {
-        console.warn("Błąd zapisu upgradów do Firebase:", error);
-        alert('Błąd zapisu ulepszeń do Firebase.');
-    });
+        .then(() => {
+            applyUpgrades();
+            console.log("Ulepszenia zapisane do Firebase");
+        })
+        .catch(error => {
+            console.warn("Błąd zapisu upgradów do Firebase:", error);
+            alert('Błąd zapisu ulepszeń do Firebase.');
+        });
 }
