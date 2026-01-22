@@ -1,0 +1,75 @@
+<div id="hud" class="hidden">
+    <div id="score-display">DYSTANS: 0m</div>
+    <div>PALIWO:</div>
+    <div id="fuel-bar-container">
+        <div id="fuel-bar-fill"></div>
+    </div>
+    <div id="error-log" style="color: red; font-size: 12px; margin-top: 10px; background: rgba(0,0,0,0.7);"></div>
+</div>
+
+<div id="ui-layer">
+
+    <div id="loading-screen" class="screen">
+        <h1>Ładowanie...</h1>
+        <p>Wczytywanie warstw...</p>
+        <p id="loading-status">0%</p>
+        <button onclick="forceStart()" style="background-color: #666; margin-top: 20px;">Pomiń (Tryb awaryjny)</button>
+    </div>
+
+    <div id="login-screen" class="screen hidden">
+        <h1>Plane Survival</h1>
+        <input type="text" id="nickname-input" placeholder="Twój Nick" maxlength="10">
+        <br>
+        <button onclick="goToMenu()">Dalej</button>
+    </div>
+
+    <div id="menu-screen" class="screen hidden">
+        <h1 id="welcome-text">Witaj!</h1>
+        <p>Sterowanie:</p>
+        <button class="secondary" onclick="setControls('touch')">Dotyk</button>
+        <button class="secondary" onclick="setControls('gyro')">Żyroskop</button>
+        <p id="control-info" style="font-size: 12px; color: #666;">Wybrano: Dotyk</p>
+        <br>
+        <button onclick="startGame()">START</button>
+        <button class="secondary" onclick="goToUpgrades()" style="margin-top: 10px;">Ulepszenia ($)</button>
+        <button class="secondary" onclick="showLeaderboard()" style="margin-top: 10px;">Leaderboard</button>
+    </div>
+
+    <div id="upgrades-screen" class="screen hidden">
+        <h1>Ulepszenia</h1>
+        <div id="currency-display" style="font-size: 18px; font-weight: bold; margin-bottom: 15px; color: #28a745;">
+            Waluta: $<span id="currency-amount">0</span></div>
+
+        <div id="upgrades-list" style="margin-bottom: 15px;">
+            <div class="upgrade-item">
+                <strong>Dodatkowe paliwo start:</strong>
+                <p id="fuel-upgrade-level">Poziom: 0</p>
+                <button class="secondary" onclick="buyUpgrade('maxFuel')">Kup za $10</button>
+            </div>
+
+            <div class="upgrade-item">
+                <strong>Efektywność paliwa (wznoszenie):</strong>
+                <p id="efficiency-upgrade-level">Poziom: 0</p>
+                <button class="secondary" onclick="buyUpgrade('efficiency')">Kup za $15</button>
+            </div>
+        </div>
+
+        <button onclick="goToMenu()" style="width: 100%;">Powrót do Menu</button>
+    </div>
+
+    <div id="gameover-screen" class="screen hidden">
+        <h1>Koniec Gry</h1>
+        <p id="final-reason">Powód</p>
+        <h2>Wynik: <span id="final-score">0</span>m</h2>
+        <p id="earned-currency" style="color: #28a745; font-weight: bold;"></p>
+        <button onclick="resetToMenu()">Menu</button>
+    </div>
+
+    <div id="leaderboard-screen" class="screen hidden">
+        <h1>Leaderboard</h1>
+        <div id="leaderboard-list" style="max-height: 300px; overflow:auto; text-align:left;"></div>
+        <br>
+        <button onclick="closeLeaderboard()">Powrót</button>
+    </div>
+
+</div>
